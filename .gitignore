@@ -1,6 +1,7 @@
 .DS_Store
 */.DS_Store
 *.log
+*.pid
+*.log.*
+doc
 config.yml
-thin.yml
-rackup.ru

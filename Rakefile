@@ -3,7 +3,33 @@ require 'yaml'
 
 CONFIG = YAML.load_file( File.join(File.dirname(__FILE__), 'config.yml') ) unless defined? CONFIG
 
+# -- Shortcuts
+
+desc "Start application in development mode"
 task :default => 'start:development'
+
+desc "Start application in production mode with Thin"
+task :start   => 'start:production'
+
+# -- Start/Stop
+
+namespace :start do
+  task :development do
+    system "ruby pushr.rb -p 4000"
+  end
+  task :production do
+    system "thin -R config.ru -d -P thin.pid -l production.log -e production -p 4000 start"
+    puts "> Pushr started on port 4000" if $?.success?
+  end
+end
+
+desc "Stop application in production mode"
+task :stop do
+  system "thin -R config.ru -d -P thin.pid -l production.log -e production -p 4000 stop"
+  puts "> Pushr stopped" if $?.success?
+end
+
+# -- Maintenance
 
 namespace :app do
   desc "Check dependencies of the application"
@@ -14,9 +40,10 @@ namespace :app do
       require 'haml'
       require 'sass'
       require 'capistrano'
+      require 'thin'
       puts "\n[*] Good! You seem to have all the neccessary gems for Pushr"
     rescue LoadError => e
-      puts "[!] Bad! Some gems for Pusher are missing!"
+      puts "[!] Bad! Some gems for Pushr are missing!"
       puts e.message
     ensure
       Sinatra::Application.default_options.merge!(:run => false)
@@ -27,20 +54,4 @@ namespace :app do
     # TODO : Ask for key name with Highline
     `cat ~/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys`
   end
-end
-
-namespace :start do
-
-  desc "Start application in development mode"
-  task :development do
-    system "ruby pushr.rb -p 4000"
-  end
-
-  desc "Start application in production mode"
-  task :production do
-    port = ENV['PORT'] || 4000
-    puts "Starting Pushr on port #{port}..."
-    system "nohup ruby pushr.rb -p #{port} -e production &"
-  end
-
 end
