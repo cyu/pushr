@@ -1,12 +1,10 @@
 require 'rubygems'
-require 'sinatra'
+require 'sinatra/base'
 require 'yaml'
 require 'logger'
 
 # = Pushr
 # Deploy Rails applications by Github Post-Receive URLs launching Capistrano's commands
-
-CONFIG = YAML.load_file( File.join(File.dirname(__FILE__), 'config.yml') ) unless defined? CONFIG
 
 class String
   # http://github.com/rails/rails/blob/master/activesupport/lib/active_support/core_ext/string/inflections.rb#L44-49
@@ -114,16 +112,21 @@ module Pushr
   end # end Repository
 
   # == Wrapping application logic
-  class Application
+  class Application < Sinatra::Base
 
     include Logger
 
-    attr_reader :path, :application, :repository, :success, :cap_output
+    attr_reader :path, :application, :repository, :success, :cap_output, :config
+    
+    set :app_file, __FILE__
 
-    def initialize(path)
+    def initialize(config_file='config.yml')
+      @config = YAML.load_file( File.join(File.dirname(__FILE__), config_file) )
+      
+      @path = config['path']
       log.fatal('Pushr.new') { "Path not valid: #{path}" } and raise ArgumentError, "File not found: #{path}" unless File.exists?(path)
-      @path = path
-      @application = ::CONFIG['application'] || "You really should set this to something"
+
+      @application = config['application'] || "You really should set this to something"
       @repository  = Repository.new(path)
       load_notifiers
     end
@@ -132,7 +135,7 @@ module Pushr
       if repository.uptodate? # Do not deploy if up-to-date (eg. push was to other branch) ...
         log.info('Pushr') { "No updates for application found" } and return {:@success => false, :output => 'Application is uptodate'}
       end unless force == 'true' # ... unless forced from web GUI
-      cap_command = CONFIG['cap_command'] || 'deploy:migrations'
+      cap_command = config['cap_command'] || 'deploy:migrations'
       log.info(application) { "Deployment #{"(force) " if force == 'true' }starting..." }
       @cap_output  = %x[cd #{path}/shared/cached-copy; cap #{cap_command} 2>&1]
       @success     = $?.success?
@@ -140,6 +143,56 @@ module Pushr
       log_deploy_result
       send_notifications
     end
+
+    # -------  Sinatra gets on stage here  --------------------------------------------------
+
+    # -- Authorize all requests with username/password set in <tt>config.yml</tt>
+    before do
+      halt [404, "Not configured\n"] and return unless configured?
+      response['WWW-Authenticate'] = %(Basic realm="[pushr] #{application}") and \
+      halt([401, "Not authorized\n"]) and \
+      return unless authorized?
+    end
+
+    # -- Helpers
+    helpers do
+
+      def authorized?
+        @auth ||=  Rack::Auth::Basic::Request.new(request.env)
+        @auth.provided? && @auth.basic? && @auth.credentials && @auth.credentials.first == config['username'] && @auth.credentials.last == config['password']
+      end
+
+      def configured?
+        config['username'] && !config['username'].nil? && config['password'] && !config['password'].nil?
+      end
+
+    end
+
+    error do 
+      request.env['sinatra.error'].to_s
+    end
+    
+    use_in_file_templates!
+
+    # == Get info
+    get '/' do
+      @pushr = self
+      haml :info
+    end
+
+    # == Deploy!
+    post '/' do
+      deploy!(params[:force])
+      @pushr = self
+      haml :deployed
+    end
+
+    # == Look nice
+    get '/style.css' do
+      content_type 'text/css', :charset => 'utf-8'
+      sass :style
+    end
+    get( '/favicon.ico' ) { content_type 'image/gif' }
 
     private
 
@@ -154,9 +207,9 @@ module Pushr
     end
 
     def load_notifiers
-      @notifiers_path = CONFIG['notifiers_path'] || '../pushr_notifiers'
+      @notifiers_path = config['notifiers_path'] || '../pushr_notifiers'
       @notifiers = []
-      CONFIG['notifiers'].each do |notifier|
+      config['notifiers'].each do |notifier|
         notifier_name, notifier_config = notifier.to_a.flatten
         unless Pushr::Notifier::const_defined?(notifier_name.to_s.camelize)
           begin
@@ -176,54 +229,6 @@ module Pushr
   end # end Application
 
 end # end Pushr
-
-# -------  Sinatra gets on stage here  --------------------------------------------------
-
-# -- Authorize all requests with username/password set in <tt>config.yml</tt>
-before do
-  halt [404, "Not configured\n"] and return unless configured?
-  response['WWW-Authenticate'] = %(Basic realm="[pushr] #{CONFIG['application']}") and \
-  halt([401, "Not authorized\n"]) and \
-  return unless authorized?
-end
-
-# -- Helpers
-helpers do
-
-  def authorized?
-    @auth ||=  Rack::Auth::Basic::Request.new(request.env)
-    @auth.provided? && @auth.basic? && @auth.credentials && @auth.credentials.first == CONFIG['username'] && @auth.credentials.last == CONFIG['password']
-  end
-
-  def configured?
-    CONFIG['username'] && !CONFIG['username'].nil? && CONFIG['password'] && !CONFIG['password'].nil?
-  end
-
-end
-
-error do 
-  request.env['sinatra.error'].to_s
-end
-
-# == Get info
-get '/' do
-  @pushr = Pushr::Application.new(CONFIG['path'])
-  haml :info
-end
-
-# == Deploy!
-post '/' do
-  @pushr = Pushr::Application.new(CONFIG['path'])
-  @pushr.deploy!(params[:force])
-  haml :deployed
-end
-
-# == Look nice
-get '/style.css' do
-  content_type 'text/css', :charset => 'utf-8'
-  sass :style
-end
-get( '/favicon.ico' ) { content_type 'image/gif' }
 
 __END__
 
