@@ -237,7 +237,7 @@ __END__
   %head
     %title= "[pushr] #{@pushr.application}"
     %meta{ 'http-equiv' => 'Content-Type', :content => 'text/html;charset=utf-8' }
-    %link{ :rel => 'stylesheet', :type => 'text/css', :href => "/style.css" }
+    %link{ :rel => 'stylesheet', :type => 'text/css', :href => "style.css" }
   %body
     = yield
 
@@ -261,7 +261,7 @@ __END__
     by
     = @pushr.repository.info.author
   %p
-    %form{ :action => "/", :method => 'post', :onsubmit => "this.submit.disabled='true'" }
+    %form{ :method => 'post', :onsubmit => "this.submit.disabled='true'" }
       %input{ 'type' => 'hidden', 'name' => 'force', 'value' => 'true' }
       %input{ 'type' => 'submit', 'value' => 'Deploy!', 'name' => 'submit', :id => 'submit' }
 
