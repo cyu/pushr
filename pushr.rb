@@ -88,8 +88,9 @@ module Pushr
 
     Struct.new('Info', :revision, :message, :author, :when, :datetime) unless defined? Struct::Info
 
-    def initialize(path)
+    def initialize(path, git_uptodate_command='git fetch -q origin 2>&1')
       @path = path
+      @git_uptodate_command = git_uptodate_command
     end
 
     def info
@@ -104,8 +105,8 @@ module Pushr
 
     def uptodate?
       log.info('Pushr') { "Fetching new revisions from remote..." }
-      info = `cd #{@path}/shared/cached-copy; git fetch -q origin 2>&1`
-      log.fatal('git fetch -q origin') { "Error while checking if app up-to-date: #{info}" } and return false unless $?.success?
+      info = `cd #{@path}/shared/cached-copy; #{@git_uptodate_command}`
+      log.fatal(@git_uptodate_command) { "Error while checking if app up-to-date: #{info}" } and return false unless $?.success?
       return info.strip == '' # Blank output => No updates from git remote
     end
 
@@ -127,7 +128,7 @@ module Pushr
       log.fatal('Pushr.new') { "Path not valid: #{path}" } and raise ArgumentError, "File not found: #{path}" unless File.exists?(path)
 
       @application = config['application'] || "You really should set this to something"
-      @repository  = Repository.new(path)
+      @repository  = Repository.new(path, config['git_uptodate_command'])
       load_notifiers
     end
 

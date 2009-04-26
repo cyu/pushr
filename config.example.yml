@@ -11,6 +11,9 @@ path:  ~
 # * Capistrano command (defaults to `cap deploy:migrations` if not set)
 cap_command: ~
 
+# * Git uptodate check command (defaults to `git_uptodate_command` if not set)
+git_uptodate_command: ~
+
 # * Setup notifications (http://github.com/karmi/pushr_notifiers)
 # notifiers_path: "../somewhere/else" # Set this if your notifiers are not in ../pushr_notifiers
 notifiers:
