@@ -104,7 +104,7 @@ module Pushr
     end
 
     def uptodate?
-      log.info('Pushr') { "Fetching new revisions from remote..." }
+      log.info('Pushr') { "Fetching new revisions from remote for #{@path}..." }
       info = `cd #{@path}/shared/cached-copy; #{@git_uptodate_command}`
       log.fatal(@git_uptodate_command) { "Error while checking if app up-to-date: #{info}" } and return false unless $?.success?
       return info.strip == '' # Blank output => No updates from git remote
@@ -134,7 +134,7 @@ module Pushr
 
     def deploy!(force=false)
       if repository.uptodate? # Do not deploy if up-to-date (eg. push was to other branch) ...
-        log.info('Pushr') { "No updates for application found" } and return {:@success => false, :output => 'Application is uptodate'}
+        log.info('Pushr') { "No updates for #{application} found" } and return {:@success => false, :output => 'Application is uptodate'}
       end unless force == 'true' # ... unless forced from web GUI
       cap_command = config['cap_command'] || 'deploy:migrations'
       log.info(application) { "Deployment #{"(force) " if force == 'true' }starting..." }
